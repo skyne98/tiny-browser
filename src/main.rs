@@ -50,10 +50,36 @@ fn main() -> Result<()> {
     let rust_lang_url = "https://www.rust-lang.org";
     let rust_lang_source = reqwest::blocking::get(rust_lang_url)?.text()?;
     let rust_lang_title = (&mut wrapper).execute_script(&format!(
-        "linkedom.parseHTML(`{}`).document.title",
+        "(function () {{ let html = linkedom.parseHTML(`{}`); globalThis.document = html.document; globalThis.window = html.window; return document.title; }})()",
         rust_lang_source
     ))?;
     println!("Rust Title: {}", rust_lang_title.trim());
+
+    // Get a list of all script tags
+    let script_tags = wrapper.execute_script(
+        "(function () { let scripts = document.querySelectorAll('script'); return Array.from(scripts).map(script => script.src); })()",
+    )?;
+    println!("Scripts: {:?}", script_tags);
+
+    // Execute all scripts one by one
+    for script in script_tags.split(',') {
+        if script.is_empty() {
+            continue;
+        }
+
+        let url = format!("https://www.rust-lang.org{}", script.trim());
+
+        let source = reqwest::blocking::get(&url)?.text()?;
+        (&mut wrapper).execute_script(&source)?;
+
+        println!("Loaded: {}", url);
+
+        // Execute the script
+        match wrapper.execute_script(&source) {
+            Ok(_) => println!("Executed: {}", url),
+            Err(e) => println!("Error: {}", e),
+        }
+    }
 
     Ok(())
 }
