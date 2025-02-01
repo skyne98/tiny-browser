@@ -46,11 +46,35 @@ fn main() -> Result<()> {
     )?;
     println!("Content: {}", content);
 
+    // Try to load a document with a button with an onclick event
+    // and click the button
+    wrapper.inject_alert()?;
+    let button_script = r#"
+        (function () { let html = linkedom.parseHTML(`
+                <html>
+                    <body>
+                        <button id="my-button" onclick="alert('Hello from button')">Click Me</button>
+                    </body>
+                </html>
+            `);
+
+            // Iterate over each element and turn the "onclick" attribute to a click handler function
+            // and set it correctly
+            html.document.querySelectorAll('[onclick]').forEach(element => {
+                element.onclick = new Function(element.getAttribute('onclick'));
+            });
+
+            html.document.getElementById('my-button').click();
+            html.document.getElementById('my-button').click();
+        })()
+    "#;
+    wrapper.execute_script(button_script)?;
+
     // Try to load https://www.rust-lang.org
     let rust_lang_url = "https://www.rust-lang.org";
     let rust_lang_source = reqwest::blocking::get(rust_lang_url)?.text()?;
     let rust_lang_title = (&mut wrapper).execute_script(&format!(
-        "(function () {{ let html = linkedom.parseHTML(`{}`); globalThis.document = html.document; globalThis.window = html.window; return document.title; }})()",
+        "(function () {{ let html = linkedom.parseHTML(`{}`); globalThis.document = html.document; globalThis.window = html.window; return html.document.title; }})()",
         rust_lang_source
     ))?;
     println!("Rust Title: {}", rust_lang_title.trim());
@@ -80,6 +104,35 @@ fn main() -> Result<()> {
             Err(e) => println!("Error: {}", e),
         }
     }
+
+    // Now reset the context and load https://google.com again
+    wrapper.reset();
+    // ...load linkedom.js again
+    (&mut wrapper).execute_script(linkedom_source)?;
+
+    let brave_url = "https://search.brave.com/";
+    let brave_source = reqwest::blocking::get(brave_url)?.text()?;
+    let brave_title = (&mut wrapper).execute_script(&format!(
+        "(function () {{ let html = linkedom.parseHTML(`{}`); globalThis.document = html.document; globalThis.window = html.window; return html.document.title; }})()",
+        brave_source
+    ))?;
+    println!("Brave Search Title: {}", brave_title.trim());
+
+    // Enter text to the #searchbox input field
+    let search_text = "Rust Programming Language";
+    let search_script = format!(
+        "document.querySelector('#searchbox').value = '{}'",
+        search_text
+    );
+    wrapper.execute_script(&search_script)?;
+
+    // Click the #submit-button button
+    let click_script = "document.querySelector('#submit-button').click()";
+    wrapper.execute_script(click_script)?;
+
+    // Get the text of the #infobox element
+    let infobox_text = wrapper.execute_script("document.getElementById('infobox').textContent")?;
+    println!("Infobox: {}", infobox_text);
 
     Ok(())
 }

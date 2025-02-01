@@ -52,6 +52,45 @@ impl V8Wrapper {
         Ok(result_str.to_rust_string_lossy(&mut scope))
     }
 
+    fn alert_callback(
+        scope: &mut v8::HandleScope,
+        args: v8::FunctionCallbackArguments,
+        _retval: v8::ReturnValue,
+    ) {
+        let msg = if args.length() > 0 {
+            args.get(0)
+                .to_string(scope)
+                .map(|s| s.to_rust_string_lossy(scope))
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
+        println!("Alert: {}", msg);
+    }
+
+    pub fn inject_alert(&mut self) -> Result<()> {
+        let handle_scope = &mut v8::HandleScope::new(&mut self.isolate);
+
+        if self.context.is_none() {
+            let context = v8::Context::new(handle_scope);
+            self.context = Some(v8::Global::new(handle_scope, context));
+        }
+
+        let local_context = v8::Local::new(handle_scope, self.context.as_ref().unwrap());
+        let mut context_scope = v8::ContextScope::new(handle_scope, local_context);
+        let global = local_context.global(&mut context_scope);
+
+        let tpl = v8::FunctionTemplate::new(&mut context_scope, Self::alert_callback);
+        let func = tpl
+            .get_function(&mut context_scope)
+            .ok_or(anyhow!("Failed to create alert function"))?;
+        let alert_name = v8::String::new(&mut context_scope, "alert")
+            .ok_or(anyhow!("Failed to create alert name string"))?;
+        global.set(&mut context_scope, alert_name.into(), func.into());
+
+        Ok(())
+    }
+
     pub fn reset(&mut self) {
         self.context = None;
     }
