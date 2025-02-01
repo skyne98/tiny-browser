@@ -1,0 +1,9 @@
+[package]
+name = "tiny-browser"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.95"
+reqwest = { version = "0.12.12", features = ["blocking", "json"] }
+rusty_v8 = "0.32.1"
